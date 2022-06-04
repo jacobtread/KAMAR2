@@ -16,7 +16,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             AppTheme {     // A surface container using the 'background' color from the theme
                 Surface(color = MaterialTheme.colors.background) {
-                    Greeting("Android")
+                    Text("KAMAR2")
+                    LoginPage()
                 }
             }
         }
