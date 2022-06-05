@@ -2,10 +2,9 @@ package com.jacobtread.kamar2.api
 
 import com.jacobtread.kamar2.response.AuthenticationException
 import com.jacobtread.kamar2.response.AuthenticationResponse
-import com.jacobtread.kamar2.utils.getElementByName
-import com.jacobtread.kamar2.utils.getElementByNameOrNull
-import com.jacobtread.kamar2.utils.number
-import com.jacobtread.kamar2.utils.text
+import com.jacobtread.kamar2.response.GlobalsResponse
+import com.jacobtread.kamar2.response.PeriodDefinition
+import com.jacobtread.kamar2.utils.*
 import io.ktor.client.*
 import io.ktor.client.engine.android.*
 import io.ktor.client.plugins.contentnegotiation.*
@@ -20,7 +19,6 @@ import org.w3c.dom.Document
 import org.xml.sax.InputSource
 import java.io.StringReader
 import javax.xml.parsers.DocumentBuilderFactory
-import kotlin.jvm.Throws
 
 object KAMAR {
 
@@ -40,6 +38,19 @@ object KAMAR {
     private fun createApiEndpoint(): String {
         check(address != null) { "Attempted to send an API request without an address" }
         return "https://$address/api/api.php"
+    }
+
+    suspend fun requestGlobals(): GlobalsResponse {
+        val response = requestResource("GetGlobals", DEFAULT_KEY)
+        val rootElement = response.documentElement
+        val periodDefinitionsRoot = rootElement.getElementByName("PeriodDefinitions")
+        val rawDefinitions = periodDefinitionsRoot.childNodes
+        val definitions = ArrayList<PeriodDefinition>()
+        rawDefinitions.forEach {
+            val (name, time) = it.getChildrenByNames("PeriodName", "PeriodTime")
+            val definition = PeriodDefinition(name.text(), time.text())
+            definitions.add(definition)
+        }
     }
 
     @Throws(AuthenticationException::class, RequestException::class)
@@ -81,7 +92,7 @@ object KAMAR {
     class RequestException(reason: String) : RuntimeException(reason)
 
     @Throws(RequestException::class)
-    private suspend fun requestResource(command: String, key: String, parameters: Map<String, String>): Document {
+    private suspend fun requestResource(command: String, key: String, parameters: Map<String, String> = emptyMap()): Document {
         return withContext(Dispatchers.IO) {
             val response = client.submitForm(
                 url = createApiEndpoint(), formParameters = Parameters.build {
