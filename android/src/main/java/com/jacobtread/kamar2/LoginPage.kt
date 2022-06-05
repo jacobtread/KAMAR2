@@ -23,7 +23,6 @@ fun LoginPage() {
             loginScope.launch(Dispatchers.IO) {
                 KAMAR.address = address
                 val result = KAMAR.authenticate(username, password)
-                println(result.getOrThrow())
             }
         }) {
             Text("Login")

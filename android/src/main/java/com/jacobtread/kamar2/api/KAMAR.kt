@@ -1,7 +1,12 @@
 package com.jacobtread.kamar2.api
 
+import com.jacobtread.kamar2.response.AuthenticationException
+import com.jacobtread.kamar2.response.AuthenticationResponse
+import com.jacobtread.kamar2.utils.getElementByName
+import com.jacobtread.kamar2.utils.getElementByNameOrNull
+import com.jacobtread.kamar2.utils.number
+import com.jacobtread.kamar2.utils.text
 import io.ktor.client.*
-import io.ktor.client.call.*
 import io.ktor.client.engine.android.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
@@ -9,15 +14,20 @@ import io.ktor.client.request.forms.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.xml.*
-import io.ktor.util.reflect.*
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.SerializationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.w3c.dom.Document
+import org.xml.sax.InputSource
+import java.io.StringReader
+import javax.xml.parsers.DocumentBuilderFactory
+import kotlin.jvm.Throws
 
 object KAMAR {
 
     private const val USER_AGENT = "KAMAR/ CFNetwork/ Darwin/"
     private const val DEFAULT_KEY = "vtku"
+    private val documentBuilderFactory = DocumentBuilderFactory
+        .newInstance()
 
     var address: String? = null
 
@@ -32,64 +42,67 @@ object KAMAR {
         return "https://$address/api/api.php"
     }
 
-    @SerialName("LogonResults")
-    @Serializable
-    data class AuthenticateResponse(
-        @SerialName("AccessLevel") val accessLevel: Int,
-        @SerialName("ErrorCode") val errorCode: Int,
-        @SerialName("Success") val success: String,
-        @SerialName("LogonLevel") val logonLevel: Int,
-        @SerialName("CurrentStudent") val currentStudent: String,
-        @SerialName("Key") val key: String,
-    )
-
-    suspend fun authenticate(username: String, password: String): Result<AuthenticateResponse> {
-        return requestResource(
+    @Throws(AuthenticationException::class, RequestException::class)
+    suspend fun authenticate(username: String, password: String): AuthenticationResponse {
+        val response = requestResource(
             "Logon", DEFAULT_KEY,
             mapOf(
                 "Username" to username,
                 "Password" to password
             )
         )
+        val rootElement = response.documentElement
+
+        val apiVersion = rootElement.getAttribute("apiversion")
+        val portalVersion = rootElement.getAttribute("portalversion")
+
+        val accessLevel = rootElement.getElementByName("AccessLevel").number()
+
+        val errorElement = rootElement.getElementByNameOrNull("Error")
+        if (errorElement != null) {
+            val errorCode = rootElement.getElementByName("ErrorCode").number()
+            throw AuthenticationException(accessLevel, errorElement.text(), errorCode)
+        }
+
+        val logonLevel = rootElement.getElementByName("LogonLevel").number()
+        val currentStudent = rootElement.getElementByName("CurrentStudent").text()
+        val key = rootElement.getElementByName("Key").text()
+
+        return AuthenticationResponse(
+            apiVersion,
+            portalVersion,
+            accessLevel,
+            logonLevel,
+            currentStudent,
+            key
+        )
     }
-
-
-    @Serializable
-    class KAMARException(
-        @SerialName("AccessLevel") val accessLevel: Int,
-        @SerialName("Error") val error: String,
-        @SerialName("ErrorCode") val errorCode: Int,
-    ) : RuntimeException(error)
 
     class RequestException(reason: String) : RuntimeException(reason)
 
-
-    private suspend inline fun <reified T> requestResource(command: String, key: String, parameters: Map<String, String>): Result<T> =
-        requestResource(typeInfo<T>(), command, key, parameters)
-
-    private suspend fun <T> requestResource(typeInfo: TypeInfo, command: String, key: String, parameters: Map<String, String>): Result<T> {
-        val response = client.submitForm(
-            url = createApiEndpoint(), formParameters = Parameters.build {
-                append("Key", key)
-                append("Command", command)
-                parameters.forEach { (key, value) ->
-                    append(key, value)
+    @Throws(RequestException::class)
+    private suspend fun requestResource(command: String, key: String, parameters: Map<String, String>): Document {
+        return withContext(Dispatchers.IO) {
+            val response = client.submitForm(
+                url = createApiEndpoint(), formParameters = Parameters.build {
+                    append("Key", key)
+                    append("Command", command)
+                    parameters.forEach { (key, value) ->
+                        append(key, value)
+                    }
                 }
-            }, encodeInQuery = true
-        ) {
-            method = HttpMethod.Post
-            header(HttpHeaders.UserAgent, USER_AGENT)
-            header("X-Requested-With", "nz.co.KAMAR")
-        }
-        return try {
-            val error = response.body<KAMARException>()
-            Result.failure(error)
-        } catch (e: SerializationException) {
+            ) {
+                method = HttpMethod.Post
+                header(HttpHeaders.UserAgent, USER_AGENT)
+                header("X-Requested-With", "nz.co.KAMAR")
+            }
+            val rawBody = response.bodyAsText()
+            val builder = documentBuilderFactory.newDocumentBuilder()
+            val stream = InputSource(StringReader(rawBody))
             try {
-                val body = response.body<T>(typeInfo)
-                Result.success(body)
-            } catch (e: SerializationException) {
-                Result.failure(RequestException("Failed to deserialize response"))
+                return@withContext builder.parse(stream)
+            } catch (e: Exception) {
+                throw RequestException("Failed to deserialize response")
             }
         }
     }
