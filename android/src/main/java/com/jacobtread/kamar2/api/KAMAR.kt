@@ -35,6 +35,7 @@ object KAMAR {
         return "https://$address/api/api.php"
     }
 
+    @Throws(RequestException::class, DeserializationException::class)
     suspend fun requestGlobals(): GlobalsResponse {
         val response = requestResource("GetGlobals", DEFAULT_KEY)
         val definitions = response.getElementsByTagName("PeriodDefinition")
@@ -52,6 +53,7 @@ object KAMAR {
         return GlobalsResponse(definitions, startTimes)
     }
 
+    @Throws(RequestException::class, DeserializationException::class)
     suspend fun requestSettings(): SettingsResponse {
         val response = requestResource("GetSettings", DEFAULT_KEY)
         val settingsVersion = response.getTextByTag("SettingsVersion")
@@ -71,6 +73,7 @@ object KAMAR {
         return SettingsResponse(settingsVersion, schoolName, logoPath, userAccess)
     }
 
+    @Throws(RequestException::class, DeserializationException::class)
     suspend fun requestNotices(date: String): NoticesResponse {
         val response = requestResource("GetNotices", DEFAULT_KEY, mapOf("Date" to date))
         val meetings = response.getElementsByTagName("Meeting")
@@ -95,7 +98,7 @@ object KAMAR {
         return NoticesResponse(meetings, general)
     }
 
-    @Throws(AuthenticationException::class, RequestException::class)
+    @Throws(AuthenticationException::class, RequestException::class, DeserializationException::class)
     suspend fun authenticate(username: String, password: String): AuthenticationResponse {
         val response = requestResource(
             "Logon", DEFAULT_KEY,
