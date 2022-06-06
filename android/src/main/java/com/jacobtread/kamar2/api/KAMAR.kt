@@ -43,14 +43,22 @@ object KAMAR {
     suspend fun requestGlobals(): GlobalsResponse {
         val response = requestResource("GetGlobals", DEFAULT_KEY)
         val rootElement = response.documentElement
-        val periodDefinitionsRoot = rootElement.getElementByName("PeriodDefinitions")
-        val rawDefinitions = periodDefinitionsRoot.childNodes
-        val definitions = ArrayList<PeriodDefinition>()
-        rawDefinitions.forEach {
-            val (name, time) = it.getChildrenByNames("PeriodName", "PeriodTime")
-            val definition = PeriodDefinition(name.text(), time.text())
-            definitions.add(definition)
+        val rawDefinitions = rootElement.getElementsByTagName("PeriodDefinition")
+        val definitions = Array(rawDefinitions.length) {
+            val node = rawDefinitions.item(it)
+            val (name, time) = node.getChildrenByNames("PeriodName", "PeriodTime")
+            PeriodDefinition(name.text(), time.textContent)
         }
+        val days = rootElement.getElementsByTagName("Day")
+        val startTimes = Array(days.length) { dayIndex ->
+            val day = days.item(dayIndex)
+            val times = day.getElementsByTag("PeriodTime")
+            Array<String>(times.size) { periodIndex ->
+                val item = times[periodIndex]
+                item.textContent
+            }
+        }
+        return GlobalsResponse(definitions, startTimes)
     }
 
     @Throws(AuthenticationException::class, RequestException::class)
