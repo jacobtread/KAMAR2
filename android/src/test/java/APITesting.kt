@@ -4,19 +4,18 @@ import org.junit.Test
 
 class APITesting {
 
-    @Test
-    fun globalsTest() {
-        runBlocking {
+    private val address = System.getenv("KAMAR_PORTAL")
 
-        }
+    init {
+        KAMAR.address = address
     }
 
     @Test
-    fun test() {
+    fun `try request globals`() {
         runBlocking {
-            KAMAR.address = ""
             val response = KAMAR.requestGlobals()
             println(response)
         }
     }
+
 }
