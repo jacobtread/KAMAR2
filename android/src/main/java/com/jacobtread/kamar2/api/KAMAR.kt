@@ -1,9 +1,6 @@
 package com.jacobtread.kamar2.api
 
-import com.jacobtread.kamar2.response.AuthenticationException
-import com.jacobtread.kamar2.response.AuthenticationResponse
-import com.jacobtread.kamar2.response.GlobalsResponse
-import com.jacobtread.kamar2.response.PeriodDefinition
+import com.jacobtread.kamar2.response.*
 import com.jacobtread.kamar2.utils.*
 import io.ktor.client.*
 import io.ktor.client.engine.android.*
@@ -38,13 +35,13 @@ object KAMAR {
         val response = requestResource("GetGlobals", DEFAULT_KEY)
         val rawDefinitions = response.getElementsByTagName("PeriodDefinition")
         val definitions = Array(rawDefinitions.length) {
-            val node = rawDefinitions.item(it)
+            val node = rawDefinitions[it]
             val (name, time) = node.getChildrenByNames("PeriodName", "PeriodTime")
-            PeriodDefinition(name.text(), time.textContent)
+            PeriodDefinition(name.textContent, time.textContent)
         }
         val days = response.getElementsByTagName("Day")
         val startTimes = Array(days.length) { dayIndex ->
-            val day = days.item(dayIndex)
+            val day = days[dayIndex]
             val times = day.getElementsByTag("PeriodTime")
             Array<String>(times.size) { periodIndex ->
                 val item = times[periodIndex]
@@ -53,6 +50,11 @@ object KAMAR {
         }
         return GlobalsResponse(definitions, startTimes)
     }
+
+    suspend fun requestSettings(): SettingsResponse {
+        val response = requestResource("GetSettings", DEFAULT_KEY)
+    }
+
 
     @Throws(AuthenticationException::class, RequestException::class)
     suspend fun authenticate(username: String, password: String): AuthenticationResponse {
@@ -67,17 +69,17 @@ object KAMAR {
         val apiVersion = response.getAttribute("apiversion")
         val portalVersion = response.getAttribute("portalversion")
 
-        val accessLevel = response.getElementByName("AccessLevel").number()
+        val accessLevel = response.getNumberByTag("AccessLevel")
 
         val errorElement = response.getElementByNameOrNull("Error")
         if (errorElement != null) {
-            val errorCode = response.getElementByName("ErrorCode").number()
+            val errorCode = response.getNumberByTag("ErrorCode")
             throw AuthenticationException(accessLevel, errorElement.text(), errorCode)
         }
 
-        val logonLevel = response.getElementByName("LogonLevel").number()
-        val currentStudent = response.getElementByName("CurrentStudent").text()
-        val key = response.getElementByName("Key").text()
+        val logonLevel = response.getNumberByTag("LogonLevel")
+        val currentStudent = response.getTextByTag("CurrentStudent")
+        val key = response.getTextByTag("Key")
 
         return AuthenticationResponse(
             apiVersion,

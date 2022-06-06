@@ -45,7 +45,7 @@ class NodeListIterator(private val nodeList: NodeList) : Iterator<Node> {
 }
 
 
-inline operator fun NodeList.get(index: Int): Node? = item(index)
+inline operator fun NodeList.get(index: Int): Node = item(index) ?: throw DeserializationException()
 
 fun Node.getChildByName(name: String): Node {
     if (!hasChildNodes()) throw DeserializationException()
@@ -74,6 +74,10 @@ fun Node.getElementsByTag(tag: String): List<Node> {
     childNodes.forEach { if (it.nodeName == tag) out.add(it) }
     return out
 }
+
+fun Element.getTextByTag(tag: String): String = getElementByName(tag).text()
+fun Element.getNumberByTag(tag: String): Int = getElementByName(tag).number()
+
 
 inline fun Element.getElementByName(name: String): Node {
     return this.getElementsByTagName(name).first()
