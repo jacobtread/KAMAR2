@@ -33,6 +33,20 @@ inline fun NodeList.firstOrNull(each: (Node) -> Boolean): Node? {
     return null
 }
 
+
+operator fun NodeList.iterator(): Iterator<Node> {
+    return NodeListIterator(this)
+}
+
+class NodeListIterator(private val nodeList: NodeList) : Iterator<Node> {
+    private var index = 0
+    override fun hasNext(): Boolean = index < nodeList.length
+    override fun next(): Node = nodeList.item(index) ?: throw NoSuchElementException()
+}
+
+
+inline operator fun NodeList.get(index: Int): Node? = item(index)
+
 fun Node.getChildByName(name: String): Node {
     if (!hasChildNodes()) throw DeserializationException()
     val children = childNodes
@@ -52,6 +66,8 @@ fun Node.getChildrenByNames(vararg names: String): Array<Node> {
     @Suppress("UNCHECKED_CAST")
     return out as Array<Node>
 }
+
+
 
 fun Node.getElementsByTag(tag: String): List<Node> {
     val out = ArrayList<Node>()
