@@ -7,15 +7,13 @@ import com.jacobtread.kamar2.response.PeriodDefinition
 import com.jacobtread.kamar2.utils.*
 import io.ktor.client.*
 import io.ktor.client.engine.android.*
-import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
 import io.ktor.client.request.forms.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
-import io.ktor.serialization.kotlinx.xml.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.w3c.dom.Document
+import org.w3c.dom.Element
 import org.xml.sax.InputSource
 import java.io.StringReader
 import javax.xml.parsers.DocumentBuilderFactory
@@ -29,11 +27,7 @@ object KAMAR {
 
     var address: String? = null
 
-    private val client = HttpClient(Android) {
-        install(ContentNegotiation) {
-            xml()
-        }
-    }
+    private val client = HttpClient(Android)
 
     private fun createApiEndpoint(): String {
         check(address != null) { "Attempted to send an API request without an address" }
@@ -42,14 +36,13 @@ object KAMAR {
 
     suspend fun requestGlobals(): GlobalsResponse {
         val response = requestResource("GetGlobals", DEFAULT_KEY)
-        val rootElement = response.documentElement
-        val rawDefinitions = rootElement.getElementsByTagName("PeriodDefinition")
+        val rawDefinitions = response.getElementsByTagName("PeriodDefinition")
         val definitions = Array(rawDefinitions.length) {
             val node = rawDefinitions.item(it)
             val (name, time) = node.getChildrenByNames("PeriodName", "PeriodTime")
             PeriodDefinition(name.text(), time.textContent)
         }
-        val days = rootElement.getElementsByTagName("Day")
+        val days = response.getElementsByTagName("Day")
         val startTimes = Array(days.length) { dayIndex ->
             val day = days.item(dayIndex)
             val times = day.getElementsByTag("PeriodTime")
@@ -70,22 +63,21 @@ object KAMAR {
                 "Password" to password
             )
         )
-        val rootElement = response.documentElement
 
-        val apiVersion = rootElement.getAttribute("apiversion")
-        val portalVersion = rootElement.getAttribute("portalversion")
+        val apiVersion = response.getAttribute("apiversion")
+        val portalVersion = response.getAttribute("portalversion")
 
-        val accessLevel = rootElement.getElementByName("AccessLevel").number()
+        val accessLevel = response.getElementByName("AccessLevel").number()
 
-        val errorElement = rootElement.getElementByNameOrNull("Error")
+        val errorElement = response.getElementByNameOrNull("Error")
         if (errorElement != null) {
-            val errorCode = rootElement.getElementByName("ErrorCode").number()
+            val errorCode = response.getElementByName("ErrorCode").number()
             throw AuthenticationException(accessLevel, errorElement.text(), errorCode)
         }
 
-        val logonLevel = rootElement.getElementByName("LogonLevel").number()
-        val currentStudent = rootElement.getElementByName("CurrentStudent").text()
-        val key = rootElement.getElementByName("Key").text()
+        val logonLevel = response.getElementByName("LogonLevel").number()
+        val currentStudent = response.getElementByName("CurrentStudent").text()
+        val key = response.getElementByName("Key").text()
 
         return AuthenticationResponse(
             apiVersion,
@@ -100,7 +92,7 @@ object KAMAR {
     class RequestException(reason: String) : RuntimeException(reason)
 
     @Throws(RequestException::class)
-    private suspend fun requestResource(command: String, key: String, parameters: Map<String, String> = emptyMap()): Document {
+    private suspend fun requestResource(command: String, key: String, parameters: Map<String, String> = emptyMap()): Element {
         return withContext(Dispatchers.IO) {
             val response = client.submitForm(
                 url = createApiEndpoint(), formParameters = Parameters.build {
@@ -119,7 +111,8 @@ object KAMAR {
             val builder = documentBuilderFactory.newDocumentBuilder()
             val stream = InputSource(StringReader(rawBody))
             try {
-                return@withContext builder.parse(stream)
+                val document = builder.parse(stream)
+                return@withContext document.documentElement
             } catch (e: Exception) {
                 throw RequestException("Failed to deserialize response")
             }

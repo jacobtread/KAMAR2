@@ -1,6 +1,6 @@
 package com.jacobtread.kamar2.response
 
-data class SettingResponse(
+data class SettingsResponse(
     val settingsVersion: String,
     val logoName: String,
     val logoPath: String,
