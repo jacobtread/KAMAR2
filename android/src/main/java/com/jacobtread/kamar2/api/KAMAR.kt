@@ -23,9 +23,12 @@ object KAMAR {
     private val documentBuilderFactory = DocumentBuilderFactory
         .newInstance()
 
+    private const val NOTICES_DATE_FORMAT = "dd/MM/yyyy"
+
     var address: String? = null
 
     private val client = HttpClient(Android)
+
 
     private fun createApiEndpoint(): String {
         check(address != null) { "Attempted to send an API request without an address" }
@@ -34,21 +37,18 @@ object KAMAR {
 
     suspend fun requestGlobals(): GlobalsResponse {
         val response = requestResource("GetGlobals", DEFAULT_KEY)
-        val rawDefinitions = response.getElementsByTagName("PeriodDefinition")
-        val definitions = Array(rawDefinitions.length) {
-            val node = rawDefinitions[it]
-            val (name, time) = node.getChildrenByNames("PeriodName", "PeriodTime")
-            PeriodDefinition(name.textContent, time.textContent)
-        }
-        val days = response.getElementsByTagName("Day")
-        val startTimes = Array(days.length) { dayIndex ->
-            val day = days[dayIndex]
-            val times = day.getElementsByTag("PeriodTime")
-            Array<String>(times.size) { periodIndex ->
-                val item = times[periodIndex]
-                item.textContent
+        val definitions = response.getElementsByTagName("PeriodDefinition")
+            .arrayTransform { node ->
+                val (name, time) = node.getChildrenByNames("PeriodName", "PeriodTime")
+                PeriodDefinition(name.textContent, time.textContent)
             }
-        }
+
+        val startTimes = response.getElementsByTagName("Day")
+            .arrayTransform { dayNode ->
+                dayNode.getElementsByTag("PeriodTime")
+                    .arrayTransform { periodNode -> periodNode.textContent }
+            }
+
         return GlobalsResponse(definitions, startTimes)
     }
 
@@ -71,6 +71,29 @@ object KAMAR {
         return SettingsResponse(settingsVersion, schoolName, logoPath, userAccess)
     }
 
+    suspend fun requestNotices(date: String): NoticesResponse {
+        val response = requestResource("GetNotices", DEFAULT_KEY, mapOf("Date" to date))
+        val meetings = response.getElementsByTagName("Meeting")
+            .arrayTransform { node ->
+                val level = node.getTextByTag("Level")
+                val subject = node.getTextByTag("Subject")
+                val body = node.getTextByTag("Body")
+                val teacher = node.getTextByTag("Teacher")
+                val place = node.getTextByTag("PlaceMeet")
+                val dateMeet = node.getTextByTag("DateMeet")
+                val time = node.getTextByTag("TimeMeet")
+                MeetingNotice(level, subject, body, teacher, place, dateMeet, time)
+            }
+        val general =  response.getElementsByTagName("General")
+            .arrayTransform { node ->
+                val level = node.getTextByTag("Level")
+                val subject = node.getTextByTag("Subject")
+                val body = node.getTextByTag("Body")
+                val teacher = node.getTextByTag("Teacher")
+                GeneralNotice(level, subject, body, teacher)
+            }
+        return NoticesResponse(meetings, general)
+    }
 
     @Throws(AuthenticationException::class, RequestException::class)
     suspend fun authenticate(username: String, password: String): AuthenticationResponse {

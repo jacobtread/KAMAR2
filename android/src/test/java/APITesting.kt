@@ -1,6 +1,7 @@
 import com.jacobtread.kamar2.api.KAMAR
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
+import java.text.DateFormat
 
 class APITesting {
 
@@ -26,4 +27,11 @@ class APITesting {
         }
     }
 
+    @Test
+    fun `try request notices`() {
+        runBlocking {
+            val response = KAMAR.requestNotices("06/06/2022")
+            println(response)
+        }
+    }
 }

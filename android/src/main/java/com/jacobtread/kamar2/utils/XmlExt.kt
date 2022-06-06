@@ -95,6 +95,16 @@ fun Node.getElementsByTag(tag: String): List<Node> {
 fun Element.getTextByTag(tag: String): String = getElementByName(tag).text()
 fun Element.getNumberByTag(tag: String): Int = getElementByName(tag).number()
 
+fun Node.getTextByTag(tag: String): String = getChildByName(tag).text()
+fun Node.getNumberByTag(tag: String): Int = getChildByName(tag).number()
+
+inline fun <reified T> NodeList.arrayTransform(transform: (Node) -> T): Array<T> {
+    return Array(length) { transform(item(it)) }
+}
+
+inline fun <reified T> List<Node>.arrayTransform(transform: (Node) -> T): Array<T> {
+    return Array(size) { transform(this[it]) }
+}
 
 inline fun Element.getElementByName(name: String): Node {
     return this.getElementsByTagName(name).first()
