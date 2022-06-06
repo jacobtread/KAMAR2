@@ -18,4 +18,12 @@ class APITesting {
         }
     }
 
+    @Test
+    fun `try request settings`() {
+        runBlocking {
+            val response = KAMAR.requestSettings()
+            println(response)
+        }
+    }
+
 }

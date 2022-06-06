@@ -16,6 +16,24 @@ inline fun NodeList.forEach(each: (Node) -> Unit) {
     }
 }
 
+inline fun NodeList.forEachOfType(type: Short, each: (Node) -> Unit) {
+    val length = length
+    for (i in 0 until length) {
+        val node = item(i)
+        if (node.nodeType != type) continue
+        each(node)
+    }
+}
+
+inline fun NodeList.forEachOfTypeIndexed(type: Short, each: (Int, Node) -> Unit) {
+    val length = length
+    for (i in 0 until length) {
+        val node = item(i)
+        if (node.nodeType != type) continue
+        each(i, node)
+    }
+}
+
 inline fun NodeList.forEachIndexed(each: (Int, Node) -> Unit) {
     val length = length
     for (i in 0 until length) {
@@ -66,7 +84,6 @@ fun Node.getChildrenByNames(vararg names: String): Array<Node> {
     @Suppress("UNCHECKED_CAST")
     return out as Array<Node>
 }
-
 
 
 fun Node.getElementsByTag(tag: String): List<Node> {

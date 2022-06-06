@@ -11,6 +11,7 @@ import io.ktor.http.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.w3c.dom.Element
+import org.w3c.dom.Node
 import org.xml.sax.InputSource
 import java.io.StringReader
 import javax.xml.parsers.DocumentBuilderFactory
@@ -53,6 +54,21 @@ object KAMAR {
 
     suspend fun requestSettings(): SettingsResponse {
         val response = requestResource("GetSettings", DEFAULT_KEY)
+        val settingsVersion = response.getTextByTag("SettingsVersion")
+        val schoolName = response.getTextByTag("SchoolName")
+        val logoPath = response.getTextByTag("LogoPath")
+        val rawUsers = response.getElementsByTagName("User")
+        val userAccess = Array(rawUsers.length) { userIndex ->
+            val children = rawUsers[userIndex].childNodes
+            val map = HashMap<String, Boolean>()
+            children.forEachOfType(Node.ELEMENT_NODE) {
+                val name = it.nodeName
+                val value = it.textContent
+                map[name] = value == "1"
+            }
+            UserAccess(userIndex, map)
+        }
+        return SettingsResponse(settingsVersion, schoolName, logoPath, userAccess)
     }
 
 
