@@ -14,6 +14,7 @@ import org.w3c.dom.Element
 import org.w3c.dom.Node
 import org.xml.sax.InputSource
 import java.io.StringReader
+import java.util.*
 import javax.xml.parsers.DocumentBuilderFactory
 
 object KAMAR {
@@ -87,7 +88,7 @@ object KAMAR {
                 val time = node.getTextByTag("TimeMeet")
                 MeetingNotice(level, subject, body, teacher, place, dateMeet, time)
             }
-        val general =  response.getElementsByTagName("General")
+        val general = response.getElementsByTagName("General")
             .arrayTransform { node ->
                 val level = node.getTextByTag("Level")
                 val subject = node.getTextByTag("Subject")
@@ -96,6 +97,30 @@ object KAMAR {
                 GeneralNotice(level, subject, body, teacher)
             }
         return NoticesResponse(meetings, general)
+    }
+
+    suspend fun requestCalendar(): CalendarResponse {
+        val calendar = Calendar.getInstance()
+        val year = calendar.get(Calendar.YEAR)
+        return requestCalendar(year.toString())
+    }
+
+    suspend fun requestCalendar(year: String): CalendarResponse {
+        val response = requestResource("GetCalendar", DEFAULT_KEY, mapOf("Year" to year))
+        val days = response.getElementsByTagName("Day")
+            .arrayTransform { node ->
+                val date = node.getTextByTag("Date")
+                val status = node.getTextByTag("Status")
+                val timetableDay = node.getNumberByTagOrDefault("DayTT", -1)
+                val term = node.getNumberByTagOrDefault("Term", -1)
+                val termA = node.getNumberByTagOrDefault("TermA", -1)
+                val week = node.getNumberByTagOrDefault("Week", -1)
+                val weekA = node.getNumberByTagOrDefault("WeekA", -1)
+                val weekYear = node.getNumberByTagOrDefault("WeekYear", -1)
+                val termYear = node.getNumberByTagOrDefault("TermYear", -1)
+                CalendarDay(date, status, timetableDay, term, termA, week, weekA, weekYear, termYear)
+            }
+        return CalendarResponse(days)
     }
 
     @Throws(AuthenticationException::class, RequestException::class, DeserializationException::class)

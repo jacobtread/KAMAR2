@@ -34,4 +34,12 @@ class APITesting {
             println(response)
         }
     }
+
+    @Test
+    fun `try request calendar`() {
+        runBlocking {
+            val response = KAMAR.requestCalendar()
+            println(response)
+        }
+    }
 }

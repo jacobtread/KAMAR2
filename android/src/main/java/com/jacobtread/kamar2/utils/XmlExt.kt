@@ -97,6 +97,7 @@ fun Element.getNumberByTag(tag: String): Int = getElementByName(tag).number()
 
 fun Node.getTextByTag(tag: String): String = getChildByName(tag).text()
 fun Node.getNumberByTag(tag: String): Int = getChildByName(tag).number()
+fun Node.getNumberByTagOrDefault(tag: String, default: Int = 0): Int = getChildByName(tag).number(default)
 
 inline fun <reified T> NodeList.arrayTransform(transform: (Node) -> T): Array<T> {
     return Array(length) { transform(item(it)) }
@@ -114,3 +115,4 @@ inline fun Element.getElementByName(name: String): Node {
 inline fun Element.getElementByNameOrNull(name: String): Node? = this.getElementsByTagName(name).first()
 inline fun Node.text(): String = this.textContent
 inline fun Node.number(): Int = this.textContent.toIntOrNull() ?: throw DeserializationException()
+inline fun Node.number(default: Int): Int = this.textContent.toIntOrNull() ?: default
