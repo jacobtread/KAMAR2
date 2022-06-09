@@ -50,6 +50,14 @@ inline fun NodeList.firstOrNull(each: (Node) -> Boolean): Node? {
     }
     return null
 }
+inline fun NodeList.first(each: (Node) -> Boolean): Node {
+    val length = length
+    for (i in 0 until length) {
+        val node = item(i)
+        if (each(node)) return node
+    }
+    throw DeserializationException()
+}
 
 
 operator fun NodeList.iterator(): Iterator<Node> {

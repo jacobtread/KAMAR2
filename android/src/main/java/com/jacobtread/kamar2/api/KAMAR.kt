@@ -1,5 +1,7 @@
 package com.jacobtread.kamar2.api
 
+import com.jacobtread.kamar2.data.AuthenticationData
+import com.jacobtread.kamar2.data.PortalData
 import com.jacobtread.kamar2.response.*
 import com.jacobtread.kamar2.utils.*
 import io.ktor.client.*
@@ -28,6 +30,10 @@ object KAMAR {
 
     var address: String? = null
 
+
+    var authData = AuthenticationData.DEFAULT
+    var portalData = PortalData.DEFAULT
+
     private val client = HttpClient(Android)
 
 
@@ -38,7 +44,7 @@ object KAMAR {
 
     @Throws(RequestException::class, DeserializationException::class)
     suspend fun requestGlobals(): GlobalsResponse {
-        val response = requestResource("GetGlobals", DEFAULT_KEY)
+        val response = requestResource("GetGlobals")
         val definitions = response.getElementsByTagName("PeriodDefinition")
             .arrayTransform { node ->
                 val (name, time) = node.getChildrenByNames("PeriodName", "PeriodTime")
@@ -56,7 +62,7 @@ object KAMAR {
 
     @Throws(RequestException::class, DeserializationException::class)
     suspend fun requestSettings(): SettingsResponse {
-        val response = requestResource("GetSettings", DEFAULT_KEY)
+        val response = requestResource("GetSettings")
         val settingsVersion = response.getTextByTag("SettingsVersion")
         val schoolName = response.getTextByTag("SchoolName")
         val logoPath = response.getTextByTag("LogoPath")
@@ -76,7 +82,7 @@ object KAMAR {
 
     @Throws(RequestException::class, DeserializationException::class)
     suspend fun requestNotices(date: String): NoticesResponse {
-        val response = requestResource("GetNotices", DEFAULT_KEY, mapOf("Date" to date))
+        val response = requestResource("GetNotices", mapOf("Date" to date))
         val meetings = response.getElementsByTagName("Meeting")
             .arrayTransform { node ->
                 val level = node.getTextByTag("Level")
@@ -99,14 +105,14 @@ object KAMAR {
         return NoticesResponse(meetings, general)
     }
 
-    suspend fun requestCalendar(): CalendarResponse {
+    private fun getCurrentYear(): String {
         val calendar = Calendar.getInstance()
         val year = calendar.get(Calendar.YEAR)
-        return requestCalendar(year.toString())
+        return year.toString()
     }
 
-    suspend fun requestCalendar(year: String): CalendarResponse {
-        val response = requestResource("GetCalendar", DEFAULT_KEY, mapOf("Year" to year))
+    suspend fun requestCalendar(year: String = getCurrentYear()): CalendarResponse {
+        val response = requestResource("GetCalendar", mapOf("Year" to year))
         val days = response.getElementsByTagName("Day")
             .arrayTransform { node ->
                 val date = node.getTextByTag("Date")
@@ -123,10 +129,40 @@ object KAMAR {
         return CalendarResponse(days)
     }
 
+    private fun getCurrentTimetableGrid(): String {
+        return getCurrentYear() + "TT"
+    }
+
+    suspend fun requestStudentTimetable(grid: String = getCurrentTimetableGrid()): TimetableResponse {
+        val response = requestResource("GetStudentTimetable", mapOf(
+            "Grid" to grid
+        ))
+        val students = response.getElementsByTagName("Student")
+        val student = students.first {
+            val idNumber = it.getTextByTag("IDNumber")
+            idNumber == authData.id
+        }
+        val timetableData = student.getChildByName("TimetableData")
+        val weeks = timetableData.childNodes.arrayTransform { weekNode ->
+            val days = weekNode.childNodes.arrayTransform { dayNode ->
+                val textContent = dayNode.textContent
+                val parts = textContent.split('|')
+                val periods = if (parts.size == 1) {
+                    emptyArray()
+                } else {
+                    Array(parts.size - 1) { TimetablePeriod.parse(parts[it]) }
+                }
+                TimetableDay(periods)
+            }
+            TimetableWeek(days)
+        }
+        return TimetableResponse(weeks)
+    }
+
     @Throws(AuthenticationException::class, RequestException::class, DeserializationException::class)
-    suspend fun authenticate(username: String, password: String): AuthenticationResponse {
+    suspend fun authenticate(username: String, password: String): AuthenticationData {
         val response = requestResource(
-            "Logon", DEFAULT_KEY,
+            "Logon",
             mapOf(
                 "Username" to username,
                 "Password" to password
@@ -148,24 +184,20 @@ object KAMAR {
         val currentStudent = response.getTextByTag("CurrentStudent")
         val key = response.getTextByTag("Key")
 
-        return AuthenticationResponse(
-            apiVersion,
-            portalVersion,
-            accessLevel,
-            logonLevel,
-            currentStudent,
-            key
-        )
+        this.authData = AuthenticationData(key, currentStudent, logonLevel)
+        this.portalData = PortalData(apiVersion, portalVersion)
+
+        return this.authData
     }
 
     class RequestException(reason: String) : RuntimeException(reason)
 
     @Throws(RequestException::class)
-    private suspend fun requestResource(command: String, key: String, parameters: Map<String, String> = emptyMap()): Element {
+    private suspend fun requestResource(command: String, parameters: Map<String, String> = emptyMap()): Element {
         return withContext(Dispatchers.IO) {
             val response = client.submitForm(
                 url = createApiEndpoint(), formParameters = Parameters.build {
-                    append("Key", key)
+                    append("Key", authData.key)
                     append("Command", command)
                     parameters.forEach { (key, value) ->
                         append(key, value)
